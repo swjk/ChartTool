@@ -1,7 +1,17 @@
 import React, { Component } from 'react';
 //import ReactDOM from 'react-dom';
 import './App.css';
+import {scaleLinear,ordinal,domain} from 'd3-scale'
+import {max,extent} from 'd3-array'
+import {select,mouse,event} from 'd3-selection'
+import {line} from 'd3-shape'
+import {axisTop,axisRight,axisBottom,axisLeft} from 'd3-axis'
+import {transition} from 'd3-transition'
+import {interpolateRgb} from 'd3-interpolate'
 
+
+{/* CANVAS TEST */}
+//----------------------------------------------
 function dataSet(){
     this.lineWidth = 2;
     //this.dataPoints = [{x:1,y:2},{x:2,y:4},{x:5,y:6},{x:4,y:3}]
@@ -48,7 +58,6 @@ function drawChartBackground(canvasBackground){
     ctx.closePath()
 }
 
-//
 function LineChart(options, ctxfg){
     this.ctxfg = ctxfg;
     this.options = options
@@ -188,13 +197,13 @@ function drawChartForeground(canvasBackground,canvasForeground, dataset){
 
 }
 
-
 function splitPlot(canvasBackground, canvasForeground){
     this.dataset = new dataSet();
     window.requestAnimationFrame(this.animate.bind(this,canvasBackground,canvasForeground,this.dataset))
         //this.prototype.animate(this.canvasBackground,this.canvasForeground,this.dataset))
 
 }
+
 splitPlot.prototype.animate = function(canvasBackground,canvasForeground,dataset){
     drawChartBackground(canvasBackground);
     drawChartForeground(canvasBackground, canvasForeground, dataset)
@@ -202,13 +211,6 @@ splitPlot.prototype.animate = function(canvasBackground,canvasForeground,dataset
     alter()
     window.requestAnimationFrame(this.animate.bind(this,canvasBackground,canvasForeground,this.dataset))
 }
-
-
-
-
-
-
-
 
 class Canvas extends Component{
     constructor(props){
@@ -234,17 +236,141 @@ class Canvas extends Component{
     }
 }
 
+//-------------------------------------------------------
+
+function createData2(lowerbound,upperbound, mean){
+    var data = []
+    var mean = mean;
+    var sd   = 2;
+    var step = (upperbound - lowerbound) / 10000
+    for (var i = lowerbound; i <= upperbound; i = i+step){
+        let x = i;
+        var result = (1/sd)* (1/Math.sqrt(2*Math.PI))* Math.exp(-0.5 *Math.pow(((i-mean)/sd),2))
+        var el = {
+            "q":x, "p":result
+        }
+        data.push(el)
+    }
+    data.sort(function(x,y){
+        return x.q - y.q
+    })
+    return data;
+}
+
+
+{/*SVG TEST */}
+class SVG extends Component{
+    constructor(props){
+        super(props);
+        //this.createData2 = this.createData2.bind(this)
+        this.createBarChart = this.createBarChart.bind(this)
+        this.mouseMove = this.mouseMove.bind(this)
+        this.data = [];
+    }
+
+
+
+
+    componentDidMount(){
+        //this.createBarChart();
+        this.createGaussianChart()
+    }
+
+    mouseMove(target){
+        let mouse = mouse(target)
+        console.log(mouse)
+    }
+
+
+
+    createGaussianChart(){
+        var data = createData2(-20,20, -10)
+        const node2 = this.node2;
+        var  margin = {top:20, right:20, bottom:30, left:50}
+        var width = 500 -margin.left - margin.right;
+        var height = 500 - margin.top - margin.bottom;
+
+        var x = scaleLinear().range([0,width]);
+        var y = scaleLinear().range([height-100,0]);
+
+        console.log(x)
+
+        var xAxis = axisBottom(x);
+        var yAxis = axisLeft(y);
+
+        var newline = line()
+            .x(function(d){
+             return x(d.q);
+         }).y(function(d){
+             return y(d.p)
+         })
+
+        x.domain([-20,20])
+        y.domain([0,1])
+
+        var svg = select(node2).attr("width", width)
+                               .attr("height", height)
+                               .style("background-color", "gray")
+                               .append("g")
+                               .attr("transform", "translate(40,40)")
+
+        svg.append("g").attr("class", "xaxis")
+                       .attr("transform", "translate(0," + (height - 100) + ")")
+                       .call(xAxis);
+        svg.append("g").attr("class", "yaxis")
+                       .call(yAxis);
+
+        var path = svg.append("path").data([data]).attr("class", "linechange").attr("stroke-width",10).attr("stroke", "red").attr("d", newline)
+        svg.on("mousemove", function(){var x = mouse(svg.node())[0]; console.log(x);
+                                     path.attr("d", newline(createData2(-20,20,x*4/100 -8)));})
+
+
+        // function(){var pt = mouse(this); console.log("called");var data = createData2(-20,20,4);
+        //                                     select("").datum(data)});
+
+
+
+        select(this.experiment).transition().attrTween("background-color", function(){interpolateRgb("red", "blue")})
+    }
+
+    createBarChart(){
+        const node = this.node;
+        const dataMax = max(this.props.data)
+        const yScale = scaleLinear().domain([0,dataMax]).range([0, this.props.size[1]])
+
+        select(node).selectAll('rect').data(this.props.data).enter().append('rect')
+        select(node).selectAll('rect').data(this.props.data).exit().remove()
+
+        select(node).selectAll('rect').data(this.props.data).style('fill','#fe9922')
+                    .attr('x', (d,i) => i*25)
+                    .attr('y', d=> this.props.size[1] - yScale(d))
+                    .attr('height', d => yScale(d))
+                    .attr('width', 25)
+    }
+
+    render(){
+        {/*return(<svg ref={node => this.node = node} width={500} height={500} />
+               <svg ref={node2=> this.node2 = node2}/>)
+            */}
+            return (<div ref={experiment => this.experiment = experiment}>
+                    <svg ref={node2=> this.node2 = node2}/>
+                    </div>
+                )
+    }
+
+}
+
+
 class App extends Component {
     constructor(props){
         super(props);
     }
 
-
-
     render() {
             return (
             <div className="App">
-            <Canvas />
+            {/*<Canvas />*/}
+            <SVG data={[5,10,1,3]} size={[500,500]}/>
             <h1>Test</h1>
             </div>
 
